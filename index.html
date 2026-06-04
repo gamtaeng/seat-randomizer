@@ -466,7 +466,7 @@
             <path d="M15 15 21 21" />
             <path d="M4 4l5 5" />
           </svg>
-          섞기
+          <span id="shuffleLabel">섞기</span>
         </button>
         <button class="quiet-action" type="button" id="clearButton">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -594,6 +594,7 @@
     const stage = document.getElementById("stage");
     const childList = document.getElementById("children");
     const shuffleButton = document.getElementById("shuffleButton");
+    const shuffleLabel = document.getElementById("shuffleLabel");
     const clearButton = document.getElementById("clearButton");
     const results = document.getElementById("results");
     const confetti = document.getElementById("confetti");
@@ -605,6 +606,8 @@
     let assignment = [];
     let animationFrame = 0;
     let activeSound = null;
+    let sharedAudioContext = null;
+    const shuffleDuration = 10000;
 
     function readPhotos() {
       try {
@@ -762,48 +765,99 @@
       return mixed;
     }
 
-    function startSound() {
+    function getAudioContext() {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       if (!AudioContext) return null;
 
-      const context = new AudioContext();
-      const gain = context.createGain();
-      gain.gain.value = 0.04;
-      gain.connect(context.destination);
+      if (!sharedAudioContext || sharedAudioContext.state === "closed") {
+        sharedAudioContext = new AudioContext();
+      }
 
-      let timer = 0;
-      let count = 0;
-      const tick = () => {
+      if (sharedAudioContext.state === "suspended") {
+        sharedAudioContext.resume().catch(() => {});
+      }
+
+      return sharedAudioContext;
+    }
+
+    function startSound(duration = shuffleDuration) {
+      const context = getAudioContext();
+      if (!context) return null;
+
+      const master = context.createGain();
+      const startAt = context.currentTime + 0.02;
+      master.gain.setValueAtTime(0.0001, context.currentTime);
+      master.gain.exponentialRampToValueAtTime(0.16, startAt + 0.3);
+      master.connect(context.destination);
+
+      const melody = [523.25, 659.25, 783.99, 659.25, 587.33, 698.46, 880, 783.99];
+      const seconds = duration / 1000;
+      let stopped = false;
+
+      const playNote = (freq, offset, length = 0.16, type = "triangle", volume = 0.2) => {
         const osc = context.createOscillator();
         const noteGain = context.createGain();
-        const freq = 420 + (count % 8) * 70;
+        const noteStart = startAt + offset;
         osc.frequency.value = freq;
-        osc.type = count % 2 ? "triangle" : "sine";
-        noteGain.gain.setValueAtTime(0.0001, context.currentTime);
-        noteGain.gain.exponentialRampToValueAtTime(0.28, context.currentTime + 0.01);
-        noteGain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.08);
-        osc.connect(noteGain).connect(gain);
-        osc.start();
-        osc.stop(context.currentTime + 0.09);
-        count += 1;
-        timer = window.setTimeout(tick, Math.max(70, 180 - count * 7));
+        osc.type = type;
+        noteGain.gain.setValueAtTime(0.0001, noteStart);
+        noteGain.gain.exponentialRampToValueAtTime(volume, noteStart + 0.018);
+        noteGain.gain.exponentialRampToValueAtTime(0.0001, noteStart + length);
+        osc.connect(noteGain).connect(master);
+        osc.start(noteStart);
+        osc.stop(noteStart + length + 0.04);
       };
 
-      tick();
+      for (let step = 0, t = 0; t < seconds - 0.35; step += 1, t += 0.28) {
+        const lift = step % 16 > 10 ? 1.125 : 1;
+        playNote(melody[step % melody.length] * lift, t, 0.17, step % 3 ? "triangle" : "sine", 0.17);
+        if (step % 4 === 2) {
+          playNote(melody[(step + 3) % melody.length] * 2, t + 0.08, 0.11, "sine", 0.09);
+        }
+      }
+
+      for (let t = 0.8; t < seconds - 0.6; t += 1.12) {
+        playNote(1046.5, t, 0.08, "sine", 0.08);
+        playNote(1318.51, t + 0.07, 0.08, "sine", 0.07);
+      }
+
+      const playFinalChime = () => {
+        const finish = context.createGain();
+        finish.gain.setValueAtTime(0.0001, context.currentTime);
+        finish.gain.exponentialRampToValueAtTime(0.15, context.currentTime + 0.02);
+        finish.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.75);
+        finish.connect(context.destination);
+
+        [783.99, 987.77, 1174.66, 1567.98].forEach((freq, index) => {
+          const osc = context.createOscillator();
+          const noteGain = context.createGain();
+          const start = context.currentTime + index * 0.11;
+          osc.frequency.value = freq;
+          osc.type = "triangle";
+          noteGain.gain.setValueAtTime(0.0001, start);
+          noteGain.gain.exponentialRampToValueAtTime(0.3, start + 0.02);
+          noteGain.gain.exponentialRampToValueAtTime(0.0001, start + 0.3);
+          osc.connect(noteGain).connect(finish);
+          osc.start(start);
+          osc.stop(start + 0.34);
+        });
+      };
+
       return {
         stop() {
-          window.clearTimeout(timer);
-          const endOsc = context.createOscillator();
-          const endGain = context.createGain();
-          endOsc.frequency.value = 880;
-          endOsc.type = "triangle";
-          endGain.gain.setValueAtTime(0.0001, context.currentTime);
-          endGain.gain.exponentialRampToValueAtTime(0.36, context.currentTime + 0.02);
-          endGain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.38);
-          endOsc.connect(endGain).connect(context.destination);
-          endOsc.start();
-          endOsc.stop(context.currentTime + 0.42);
-          window.setTimeout(() => context.close(), 600);
+          if (stopped) return;
+          stopped = true;
+          master.gain.cancelScheduledValues(context.currentTime);
+          master.gain.setValueAtTime(Math.max(master.gain.value, 0.0001), context.currentTime);
+          master.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.18);
+          playFinalChime();
+          window.setTimeout(() => {
+            try {
+              master.disconnect();
+            } catch {
+              // The run may already be disconnected if the browser cleaned it up.
+            }
+          }, 1200);
         }
       };
     }
@@ -811,7 +865,7 @@
     function animateShuffle(finalAssignment) {
       const faces = Array.from(stage.querySelectorAll(".face"));
       const started = performance.now();
-      const duration = 2600;
+      const duration = shuffleDuration;
       const bounds = stage.getBoundingClientRect();
       const centerX = 50;
       const centerY = 50;
@@ -856,9 +910,14 @@
           placeFace(face, slot, 0, true);
         });
         shuffleButton.disabled = false;
+        shuffleButton.removeAttribute("aria-busy");
+        shuffleLabel.textContent = "섞기";
         renderResults(finalAssignment);
         burstConfetti();
-        if (activeSound) activeSound.stop();
+        if (activeSound) {
+          activeSound.stop();
+          activeSound = null;
+        }
       };
 
       animationFrame = requestAnimationFrame(move);
@@ -867,6 +926,8 @@
 
     function draw() {
       shuffleButton.disabled = true;
+      shuffleButton.setAttribute("aria-busy", "true");
+      shuffleLabel.textContent = "빙글빙글...";
       renderResults([]);
       activeSound = startSound();
       const slots = shuffle(layouts[mode].slots);
