@@ -1,0 +1,937 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>자리 뽑기</title>
+  <style>
+    :root {
+      --ink: #18202d;
+      --muted: #647084;
+      --line: #d9e0ea;
+      --panel: #ffffff;
+      --soft: #f4f7fb;
+      --accent: #0f8b8d;
+      --accent-strong: #0a686a;
+      --sun: #f7c948;
+      --rose: #e85d75;
+      --blue: #4d8be8;
+      --green: #57a773;
+      --shadow: 0 14px 42px rgba(24, 32, 45, 0.13);
+      font-family: "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      max-width: 100%;
+      overflow-x: hidden;
+      color: var(--ink);
+      background:
+        linear-gradient(135deg, rgba(15, 139, 141, 0.08), rgba(247, 201, 72, 0.08)),
+        #f7f9fc;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-width: 0;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px clamp(16px, 3vw, 32px);
+      border-bottom: 1px solid rgba(217, 224, 234, 0.8);
+      background: rgba(255, 255, 255, 0.86);
+      backdrop-filter: blur(12px);
+      min-width: 0;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(22px, 3vw, 34px);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .mode-switch {
+      display: inline-grid;
+      grid-template-columns: repeat(2, minmax(92px, 1fr));
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #eef3f8;
+    }
+
+    .mode-switch button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+      border: 0;
+      border-radius: 6px;
+      color: var(--muted);
+      background: transparent;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .mode-switch button[aria-pressed="true"] {
+      color: var(--ink);
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(24, 32, 45, 0.12);
+    }
+
+    .main {
+      display: grid;
+      grid-template-columns: minmax(240px, 320px) 1fr;
+      gap: clamp(16px, 2.4vw, 28px);
+      padding: clamp(16px, 3vw, 32px);
+      min-height: 0;
+      min-width: 0;
+    }
+
+    .side {
+      display: grid;
+      align-content: start;
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .children {
+      display: grid;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .child-row {
+      display: grid;
+      grid-template-columns: 54px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+    }
+
+    .thumb,
+    .face {
+      width: 54px;
+      height: 54px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-weight: 900;
+      background: var(--avatar-color, var(--accent));
+      background-size: cover;
+      background-position: center;
+      box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.7);
+      overflow: hidden;
+    }
+
+    .child-name {
+      min-width: 0;
+      font-weight: 800;
+      font-size: 17px;
+    }
+
+    .upload {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f9fbfd;
+      color: var(--ink);
+      position: relative;
+    }
+
+    .upload input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .primary-action {
+      min-height: 54px;
+      border: 0;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 18px;
+      font-weight: 900;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-shadow: 0 10px 24px rgba(15, 139, 141, 0.28);
+    }
+
+    .primary-action:hover {
+      background: var(--accent-strong);
+    }
+
+    .primary-action:disabled {
+      cursor: wait;
+      opacity: 0.72;
+    }
+
+    .quiet-action {
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--ink);
+      background: var(--panel);
+      font-weight: 800;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .stage-wrap {
+      position: relative;
+      min-height: min(74vh, 720px);
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .stage {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+    }
+
+    .scene {
+      position: absolute;
+      inset: clamp(18px, 3vw, 34px);
+    }
+
+    .scene svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .slot {
+      position: absolute;
+      width: clamp(92px, 12vw, 132px);
+      height: clamp(92px, 12vw, 132px);
+      transform: translate(-50%, -50%);
+      display: grid;
+      place-items: center;
+      border: 2px dashed rgba(24, 32, 45, 0.28);
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.56);
+      color: rgba(24, 32, 45, 0.72);
+      font-weight: 900;
+      text-align: center;
+      line-height: 1.2;
+      padding: 12px;
+      z-index: 2;
+    }
+
+    .slot-label {
+      max-width: 100%;
+      font-size: clamp(13px, 1.5vw, 16px);
+      overflow-wrap: anywhere;
+    }
+
+    .face {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: clamp(74px, 10vw, 106px);
+      height: clamp(74px, 10vw, 106px);
+      transform: translate(-50%, -50%);
+      z-index: 5;
+      transition: transform 0.22s ease, width 0.2s ease, height 0.2s ease;
+      border: 4px solid #fff;
+      box-shadow: 0 12px 25px rgba(24, 32, 45, 0.22), inset 0 0 0 3px rgba(255, 255, 255, 0.55);
+    }
+
+    .face .initial {
+      font-size: clamp(24px, 3.2vw, 38px);
+      line-height: 1;
+    }
+
+    .name-tag {
+      position: absolute;
+      left: 50%;
+      bottom: -28px;
+      transform: translateX(-50%);
+      padding: 3px 8px 4px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.92);
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 900;
+      white-space: nowrap;
+      box-shadow: 0 2px 9px rgba(24, 32, 45, 0.16);
+    }
+
+    .result-bar {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      bottom: 16px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      z-index: 4;
+      pointer-events: none;
+    }
+
+    .result-chip {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 10px;
+      border: 1px solid rgba(217, 224, 234, 0.95);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.92);
+      font-weight: 800;
+      text-align: center;
+      font-size: clamp(12px, 1.35vw, 15px);
+      overflow-wrap: anywhere;
+    }
+
+    .confetti {
+      position: absolute;
+      inset: 0;
+      z-index: 8;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .piece {
+      position: absolute;
+      top: -16px;
+      width: 10px;
+      height: 16px;
+      border-radius: 2px;
+      animation: fall 950ms ease-out forwards;
+    }
+
+    @keyframes fall {
+      to {
+        transform: translate3d(var(--drift), calc(100vh + 60px), 0) rotate(540deg);
+        opacity: 0;
+      }
+    }
+
+    .icon {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      fill: none;
+      flex: 0 0 auto;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    @media (max-width: 820px) {
+      .topbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .mode-switch {
+        width: 100%;
+      }
+
+      .main {
+        grid-template-columns: 1fr;
+      }
+
+      .side {
+        grid-template-columns: 1fr;
+      }
+
+      .children {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .child-row {
+        grid-template-columns: 46px 1fr 38px;
+        gap: 8px;
+      }
+
+      .thumb {
+        width: 46px;
+        height: 46px;
+      }
+
+      .upload {
+        width: 38px;
+        height: 38px;
+      }
+
+      .stage-wrap {
+        min-height: 62vh;
+      }
+
+      .result-bar {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 520px) {
+      .slot {
+        width: 84px;
+        height: 84px;
+      }
+
+      .face {
+        width: 74px;
+        height: 74px;
+      }
+
+      .result-chip {
+        min-height: 38px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <h1>자리 뽑기</h1>
+      <div class="mode-switch" role="group" aria-label="자리 종류">
+        <button type="button" data-mode="bed" aria-pressed="true" title="침대 자리">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 10V5a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v5" />
+            <path d="M12 10V5a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v5" />
+            <path d="M3 10h18a2 2 0 0 1 2 2v7" />
+            <path d="M3 19v-7" />
+            <path d="M3 15h20" />
+          </svg>
+          침대
+        </button>
+        <button type="button" data-mode="car" aria-pressed="false" title="자동차 자리">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 17h14" />
+            <path d="M7 17a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z" />
+            <path d="M17 17a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z" />
+            <path d="M4 17l1.6-6.2A3 3 0 0 1 8.5 8h7a3 3 0 0 1 2.8 1.9L21 17" />
+            <path d="M8 8l1-4h6l1 4" />
+          </svg>
+          자동차
+        </button>
+      </div>
+    </header>
+
+    <main class="main">
+      <aside class="side" aria-label="아이 사진 등록">
+        <div class="children" id="children"></div>
+        <button class="primary-action" type="button" id="shuffleButton">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M16 3h5v5" />
+            <path d="M4 20 21 3" />
+            <path d="M21 16v5h-5" />
+            <path d="M15 15 21 21" />
+            <path d="M4 4l5 5" />
+          </svg>
+          섞기
+        </button>
+        <button class="quiet-action" type="button" id="clearButton">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3 6h18" />
+            <path d="M8 6V4h8v2" />
+            <path d="M6 6l1 16h10l1-16" />
+            <path d="M10 11v6" />
+            <path d="M14 11v6" />
+          </svg>
+          사진 지우기
+        </button>
+      </aside>
+
+      <section class="stage-wrap" aria-label="자리 배치">
+        <div class="stage" id="stage">
+          <div class="scene" id="bedScene">
+            <svg viewBox="0 0 1000 650" role="img" aria-label="침대 자리 그림">
+              <defs>
+                <linearGradient id="bedSheet" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#9fd3d7" />
+                  <stop offset="1" stop-color="#d7eef0" />
+                </linearGradient>
+                <linearGradient id="bedWood" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0" stop-color="#d5965f" />
+                  <stop offset="1" stop-color="#9e6237" />
+                </linearGradient>
+              </defs>
+              <rect width="1000" height="650" fill="#f7fbfd" />
+              <rect x="92" y="78" width="816" height="536" rx="42" fill="url(#bedWood)" />
+              <rect x="142" y="126" width="716" height="456" rx="36" fill="#fff" />
+              <rect x="170" y="152" width="320" height="180" rx="28" fill="#fbe9e7" />
+              <rect x="510" y="152" width="320" height="180" rx="28" fill="#fff0bf" />
+              <rect x="170" y="352" width="320" height="180" rx="28" fill="#ddecff" />
+              <rect x="510" y="352" width="320" height="180" rx="28" fill="#e6f3dc" />
+              <path d="M142 344h716" stroke="#d9e0ea" stroke-width="12" stroke-linecap="round" />
+              <path d="M500 126v456" stroke="#d9e0ea" stroke-width="12" stroke-linecap="round" />
+              <path d="M154 142h692" stroke="#9e6237" stroke-width="16" stroke-linecap="round" opacity=".78" />
+              <path d="M154 318h692" stroke="#9e6237" stroke-width="16" stroke-linecap="round" opacity=".72" />
+              <path d="M154 376h692" stroke="#9e6237" stroke-width="16" stroke-linecap="round" opacity=".64" />
+              <path d="M154 562h692" stroke="#9e6237" stroke-width="16" stroke-linecap="round" opacity=".72" />
+              <path d="M120 94v506" stroke="#8a552f" stroke-width="28" stroke-linecap="round" />
+              <path d="M880 94v506" stroke="#8a552f" stroke-width="28" stroke-linecap="round" />
+              <path d="M858 156v394" stroke="#6f4326" stroke-width="12" stroke-linecap="round" />
+              <path d="M918 156v394" stroke="#6f4326" stroke-width="12" stroke-linecap="round" />
+              <path d="M858 210h60" stroke="#6f4326" stroke-width="10" stroke-linecap="round" />
+              <path d="M858 270h60" stroke="#6f4326" stroke-width="10" stroke-linecap="round" />
+              <path d="M858 330h60" stroke="#6f4326" stroke-width="10" stroke-linecap="round" />
+              <path d="M858 390h60" stroke="#6f4326" stroke-width="10" stroke-linecap="round" />
+              <path d="M858 450h60" stroke="#6f4326" stroke-width="10" stroke-linecap="round" />
+              <path d="M858 510h60" stroke="#6f4326" stroke-width="10" stroke-linecap="round" />
+              <path d="M154 124c30-58 118-74 178-28" stroke="#ffffff" stroke-width="18" stroke-linecap="round" opacity=".65" />
+              <circle cx="870" cy="94" r="34" fill="#f7c948" opacity=".55" />
+              <circle cx="108" cy="600" r="20" fill="#0f8b8d" opacity=".25" />
+            </svg>
+          </div>
+
+          <div class="scene hidden" id="carScene">
+            <svg viewBox="0 0 1000 650" role="img" aria-label="자동차 자리 그림">
+              <defs>
+                <linearGradient id="carBody" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#5574b9" />
+                  <stop offset="1" stop-color="#203c7c" />
+                </linearGradient>
+                <linearGradient id="carGlass" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0" stop-color="#d6f3ff" />
+                  <stop offset="1" stop-color="#92c5df" />
+                </linearGradient>
+              </defs>
+              <rect width="1000" height="650" fill="#f7fbfd" />
+              <rect x="214" y="56" width="572" height="562" rx="92" fill="url(#carBody)" />
+              <path d="M274 92h452l-42 118H316Z" fill="url(#carGlass)" />
+              <path d="M316 538h368l42 54H274Z" fill="#1e3570" opacity=".8" />
+              <rect x="318" y="228" width="150" height="104" rx="25" fill="#e7ecf5" />
+              <rect x="532" y="228" width="150" height="104" rx="25" fill="#e7ecf5" />
+              <rect x="300" y="306" width="160" height="118" rx="28" fill="#fbe9e7" />
+              <rect x="540" y="306" width="160" height="118" rx="28" fill="#fff0bf" />
+              <rect x="300" y="438" width="160" height="118" rx="28" fill="#ddecff" />
+              <rect x="540" y="438" width="160" height="118" rx="28" fill="#e6f3dc" />
+              <path d="M284 286h432" stroke="#203c7c" stroke-width="12" stroke-linecap="round" opacity=".22" />
+              <path d="M284 430h432" stroke="#203c7c" stroke-width="12" stroke-linecap="round" opacity=".22" />
+              <path d="M500 292v270" stroke="#203c7c" stroke-width="10" stroke-linecap="round" opacity=".18" />
+              <path d="M214 174h-42" stroke="#f7c948" stroke-width="20" stroke-linecap="round" />
+              <path d="M786 174h42" stroke="#f7c948" stroke-width="20" stroke-linecap="round" />
+              <path d="M214 526h-42" stroke="#e85d75" stroke-width="20" stroke-linecap="round" />
+              <path d="M786 526h42" stroke="#e85d75" stroke-width="20" stroke-linecap="round" />
+            </svg>
+          </div>
+        </div>
+        <div class="result-bar" id="results"></div>
+        <div class="confetti" id="confetti"></div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const children = [
+      { id: "arin", name: "아린", color: "#e85d75" },
+      { id: "sua", name: "수아", color: "#0f8b8d" },
+      { id: "yuna", name: "윤아", color: "#4d8be8" },
+      { id: "hyeri", name: "혜리", color: "#57a773" }
+    ];
+
+    const layouts = {
+      bed: {
+        label: "침대",
+        slots: [
+          { id: "bed-top-left", label: "2층 왼쪽", x: 32.5, y: 36.5 },
+          { id: "bed-top-right", label: "2층 오른쪽", x: 67.5, y: 36.5 },
+          { id: "bed-bottom-left", label: "1층 왼쪽", x: 32.5, y: 67.5 },
+          { id: "bed-bottom-right", label: "1층 오른쪽", x: 67.5, y: 67.5 }
+        ]
+      },
+      car: {
+        label: "자동차",
+        slots: [
+          { id: "car-row2-left", label: "2열 왼쪽", x: 38, y: 54 },
+          { id: "car-row2-right", label: "2열 오른쪽", x: 62, y: 54 },
+          { id: "car-row3-left", label: "3열 왼쪽", x: 38, y: 72 },
+          { id: "car-row3-right", label: "3열 오른쪽", x: 62, y: 72 }
+        ]
+      }
+    };
+
+    const storageKey = "seat-randomizer-photos-v1";
+    const stage = document.getElementById("stage");
+    const childList = document.getElementById("children");
+    const shuffleButton = document.getElementById("shuffleButton");
+    const clearButton = document.getElementById("clearButton");
+    const results = document.getElementById("results");
+    const confetti = document.getElementById("confetti");
+    const bedScene = document.getElementById("bedScene");
+    const carScene = document.getElementById("carScene");
+
+    let mode = location.hash === "#car" ? "car" : "bed";
+    let photos = readPhotos();
+    let assignment = [];
+    let animationFrame = 0;
+    let activeSound = null;
+
+    function readPhotos() {
+      try {
+        return JSON.parse(localStorage.getItem(storageKey)) || {};
+      } catch {
+        return {};
+      }
+    }
+
+    function savePhotos() {
+      localStorage.setItem(storageKey, JSON.stringify(photos));
+    }
+
+    function iconUpload() {
+      return `
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 5v14"></path>
+          <path d="M5 12h14"></path>
+        </svg>
+      `;
+    }
+
+    function makeAvatar(el, child) {
+      el.style.setProperty("--avatar-color", child.color);
+      if (photos[child.id]) {
+        el.style.backgroundImage = `url(${photos[child.id]})`;
+        el.textContent = "";
+      } else {
+        el.style.backgroundImage = "";
+        el.textContent = child.name.slice(0, 1);
+      }
+    }
+
+    function renderChildren() {
+      childList.innerHTML = "";
+      children.forEach((child) => {
+        const row = document.createElement("div");
+        row.className = "child-row";
+
+        const thumb = document.createElement("div");
+        thumb.className = "thumb";
+        makeAvatar(thumb, child);
+
+        const name = document.createElement("div");
+        name.className = "child-name";
+        name.textContent = child.name;
+
+        const upload = document.createElement("label");
+        upload.className = "upload";
+        upload.title = `${child.name} 사진`;
+        upload.innerHTML = iconUpload();
+
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/*";
+        input.setAttribute("aria-label", `${child.name} 사진 선택`);
+        input.addEventListener("change", () => handlePhoto(child, input.files[0]));
+        upload.append(input);
+
+        row.append(thumb, name, upload);
+        childList.append(row);
+      });
+    }
+
+    function handlePhoto(child, file) {
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        photos[child.id] = reader.result;
+        savePhotos();
+        renderChildren();
+        renderFaces();
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function renderSlots() {
+      stage.querySelectorAll(".slot").forEach((slot) => slot.remove());
+      layouts[mode].slots.forEach((slot) => {
+        const marker = document.createElement("div");
+        marker.className = "slot";
+        marker.dataset.slot = slot.id;
+        marker.style.left = `${slot.x}%`;
+        marker.style.top = `${slot.y}%`;
+        marker.innerHTML = `<span class="slot-label">${slot.label}</span>`;
+        stage.append(marker);
+      });
+    }
+
+    function renderFaces() {
+      stage.querySelectorAll(".face").forEach((face) => face.remove());
+      const slots = layouts[mode].slots;
+      children.forEach((child, index) => {
+        const face = document.createElement("div");
+        face.className = "face";
+        face.dataset.child = child.id;
+        face.style.setProperty("--avatar-color", child.color);
+
+        if (photos[child.id]) {
+          face.style.backgroundImage = `url(${photos[child.id]})`;
+        } else {
+          const initial = document.createElement("span");
+          initial.className = "initial";
+          initial.textContent = child.name.slice(0, 1);
+          face.append(initial);
+        }
+
+        const tag = document.createElement("span");
+        tag.className = "name-tag";
+        tag.textContent = child.name;
+        face.append(tag);
+
+        const saved = assignment.find((item) => item.child.id === child.id);
+        const slot = saved?.slot || slots[index];
+        placeFace(face, slot, 0, false);
+        stage.append(face);
+      });
+    }
+
+    function placeFace(face, slot, rotate = 0, animate = true) {
+      face.style.transition = animate
+        ? "left 640ms cubic-bezier(.2,.9,.22,1), top 640ms cubic-bezier(.2,.9,.22,1), transform 640ms cubic-bezier(.2,.9,.22,1)"
+        : "none";
+      face.style.left = `${slot.x}%`;
+      face.style.top = `${slot.y}%`;
+      face.style.transform = `translate(-50%, -50%) rotate(${rotate}deg)`;
+    }
+
+    function setMode(nextMode) {
+      if (mode === nextMode) return;
+      mode = nextMode;
+      history.replaceState(null, "", mode === "car" ? "#car" : "#bed");
+      syncModeUi();
+      assignment = [];
+      renderSlots();
+      renderFaces();
+      renderResults([]);
+    }
+
+    function syncModeUi() {
+      document.querySelectorAll(".mode-switch button").forEach((button) => {
+        button.setAttribute("aria-pressed", String(button.dataset.mode === mode));
+      });
+      bedScene.classList.toggle("hidden", mode !== "bed");
+      carScene.classList.toggle("hidden", mode !== "car");
+    }
+
+    function shuffle(items) {
+      const mixed = [...items];
+      for (let i = mixed.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [mixed[i], mixed[j]] = [mixed[j], mixed[i]];
+      }
+      return mixed;
+    }
+
+    function startSound() {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return null;
+
+      const context = new AudioContext();
+      const gain = context.createGain();
+      gain.gain.value = 0.04;
+      gain.connect(context.destination);
+
+      let timer = 0;
+      let count = 0;
+      const tick = () => {
+        const osc = context.createOscillator();
+        const noteGain = context.createGain();
+        const freq = 420 + (count % 8) * 70;
+        osc.frequency.value = freq;
+        osc.type = count % 2 ? "triangle" : "sine";
+        noteGain.gain.setValueAtTime(0.0001, context.currentTime);
+        noteGain.gain.exponentialRampToValueAtTime(0.28, context.currentTime + 0.01);
+        noteGain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.08);
+        osc.connect(noteGain).connect(gain);
+        osc.start();
+        osc.stop(context.currentTime + 0.09);
+        count += 1;
+        timer = window.setTimeout(tick, Math.max(70, 180 - count * 7));
+      };
+
+      tick();
+      return {
+        stop() {
+          window.clearTimeout(timer);
+          const endOsc = context.createOscillator();
+          const endGain = context.createGain();
+          endOsc.frequency.value = 880;
+          endOsc.type = "triangle";
+          endGain.gain.setValueAtTime(0.0001, context.currentTime);
+          endGain.gain.exponentialRampToValueAtTime(0.36, context.currentTime + 0.02);
+          endGain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.38);
+          endOsc.connect(endGain).connect(context.destination);
+          endOsc.start();
+          endOsc.stop(context.currentTime + 0.42);
+          window.setTimeout(() => context.close(), 600);
+        }
+      };
+    }
+
+    function animateShuffle(finalAssignment) {
+      const faces = Array.from(stage.querySelectorAll(".face"));
+      const started = performance.now();
+      const duration = 2600;
+      const bounds = stage.getBoundingClientRect();
+      const centerX = 50;
+      const centerY = 50;
+      const seeds = faces.map((_, index) => ({
+        angle: Math.random() * Math.PI * 2,
+        speed: 0.0028 + Math.random() * 0.002,
+        radiusX: 20 + index * 5 + Math.random() * 6,
+        radiusY: 14 + index * 4 + Math.random() * 5
+      }));
+
+      cancelAnimationFrame(animationFrame);
+
+      const move = (now) => {
+        const elapsed = now - started;
+        const progress = Math.min(elapsed / duration, 1);
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+
+        faces.forEach((face, index) => {
+          const seed = seeds[index];
+          const angle = seed.angle + elapsed * seed.speed * (1 + progress * 1.6);
+          const wiggleX = centerX + Math.cos(angle) * seed.radiusX * (1 - easeOut * 0.45);
+          const wiggleY = centerY + Math.sin(angle * 1.25) * seed.radiusY * (1 - easeOut * 0.45);
+          const target = finalAssignment.find((item) => item.child.id === face.dataset.child).slot;
+          const mix = Math.max(0, (progress - 0.62) / 0.38);
+          const x = wiggleX * (1 - mix) + target.x * mix;
+          const y = wiggleY * (1 - mix) + target.y * mix;
+          const rotate = Math.sin(angle * 1.7) * 18 * (1 - mix);
+
+          face.style.transition = "none";
+          face.style.left = `${x}%`;
+          face.style.top = `${y}%`;
+          face.style.transform = `translate(-50%, -50%) rotate(${rotate}deg)`;
+        });
+
+        if (progress < 1) {
+          animationFrame = requestAnimationFrame(move);
+          return;
+        }
+
+        finalAssignment.forEach(({ child, slot }) => {
+          const face = stage.querySelector(`[data-child="${child.id}"]`);
+          placeFace(face, slot, 0, true);
+        });
+        shuffleButton.disabled = false;
+        renderResults(finalAssignment);
+        burstConfetti();
+        if (activeSound) activeSound.stop();
+      };
+
+      animationFrame = requestAnimationFrame(move);
+      return bounds;
+    }
+
+    function draw() {
+      shuffleButton.disabled = true;
+      renderResults([]);
+      activeSound = startSound();
+      const slots = shuffle(layouts[mode].slots);
+      const kids = shuffle(children);
+      assignment = kids.map((child, index) => ({ child, slot: slots[index] }));
+      animateShuffle(assignment);
+    }
+
+    function renderResults(items) {
+      results.innerHTML = "";
+      const display = items.length
+        ? items
+        : layouts[mode].slots.map((slot) => ({ child: null, slot }));
+
+      display
+        .slice()
+        .sort((a, b) => layouts[mode].slots.findIndex((slot) => slot.id === a.slot.id) - layouts[mode].slots.findIndex((slot) => slot.id === b.slot.id))
+        .forEach(({ child, slot }) => {
+          const chip = document.createElement("div");
+          chip.className = "result-chip";
+          chip.textContent = child ? `${slot.label}: ${child.name}` : slot.label;
+          results.append(chip);
+        });
+    }
+
+    function burstConfetti() {
+      confetti.innerHTML = "";
+      const colors = ["#e85d75", "#0f8b8d", "#f7c948", "#4d8be8", "#57a773"];
+      for (let i = 0; i < 34; i += 1) {
+        const piece = document.createElement("span");
+        piece.className = "piece";
+        piece.style.left = `${Math.random() * 100}%`;
+        piece.style.background = colors[i % colors.length];
+        piece.style.animationDelay = `${Math.random() * 160}ms`;
+        piece.style.setProperty("--drift", `${Math.random() * 180 - 90}px`);
+        confetti.append(piece);
+      }
+      window.setTimeout(() => {
+        confetti.innerHTML = "";
+      }, 1300);
+    }
+
+    function clearPhotos() {
+      photos = {};
+      savePhotos();
+      renderChildren();
+      renderFaces();
+    }
+
+    document.querySelectorAll(".mode-switch button").forEach((button) => {
+      button.addEventListener("click", () => setMode(button.dataset.mode));
+    });
+
+    shuffleButton.addEventListener("click", draw);
+    clearButton.addEventListener("click", clearPhotos);
+    window.addEventListener("resize", () => {
+      renderSlots();
+      renderFaces();
+    });
+
+    syncModeUi();
+    renderChildren();
+    renderSlots();
+    renderFaces();
+    renderResults([]);
+  </script>
+</body>
+</html>
